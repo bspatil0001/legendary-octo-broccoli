@@ -1,8 +1,67 @@
 // pages/api/booking.js
-import { put, get } from '@vercel/blob';
+import { put, list } from '@vercel/blob';
+import fs from 'fs/promises';
+import path from 'path';
 
 const API_URL = 'https://www.nobrokerhood.com/booking/secured/v2/resident/new';
 const EXECUTIONS_KEY = 'booking-executions.json';
+const LOCAL_EXECUTIONS_PATH = path.join(process.cwd(), 'data', 'booking-executions.json');
+
+async function readLocalExecutions() {
+  try {
+    const file = await fs.readFile(LOCAL_EXECUTIONS_PATH, 'utf8');
+    return JSON.parse(file);
+  } catch (error) {
+    return [];
+  }
+}
+
+async function writeLocalExecutions(executions) {
+  try {
+    await fs.mkdir(path.dirname(LOCAL_EXECUTIONS_PATH), { recursive: true });
+    await fs.writeFile(LOCAL_EXECUTIONS_PATH, JSON.stringify(executions, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Local execution log write failed:', error);
+    return false;
+  }
+}
+
+async function readStoredExecutions() {
+  try {
+    const result = await list({ prefix: EXECUTIONS_KEY, limit: 20 });
+    const match = result.blobs.find(blob => blob.pathname === EXECUTIONS_KEY || blob.url.includes(EXECUTIONS_KEY));
+
+    if (!match) {
+      return readLocalExecutions();
+    }
+
+    const response = await fetch(match.url);
+    if (!response.ok) {
+      return readLocalExecutions();
+    }
+
+    const text = await response.text();
+    return text ? JSON.parse(text) : [];
+  } catch (error) {
+    return readLocalExecutions();
+  }
+}
+
+async function persistExecutions(executions) {
+  try {
+    await put(EXECUTIONS_KEY, JSON.stringify(executions), { access: 'public' });
+    return { mode: 'blob' };
+  } catch (error) {
+    console.warn('Vercel Blob is not configured or is unavailable. Falling back to local storage.', error.message);
+    const saved = await writeLocalExecutions(executions);
+    if (saved) {
+      return { mode: 'local', warning: 'Stored locally because Vercel Blob is not configured.' };
+    }
+
+    return { mode: 'none', warning: 'Storage unavailable. No log file could be written.' };
+  }
+}
 
 const bookingConfigs = [
   {
@@ -145,29 +204,17 @@ export default async function handler(req, res) {
         total: results.length
       };
 
-      // Get existing executions
-      let executions = [];
-      try {
-        const blob = await get(EXECUTIONS_KEY);
-        if (blob) {
-          executions = JSON.parse(blob.text);
-        }
-      } catch (e) {
-        executions = [];
-      }
+      const executions = await readStoredExecutions();
 
       // Add new execution and keep last 100
-      executions.unshift(execution);
-      executions = executions.slice(0, 100);
-
-      // Save to Vercel Blob
-      await put(EXECUTIONS_KEY, JSON.stringify(executions), {
-        access: 'public'
-      });
+      const updatedExecutions = [execution, ...executions].slice(0, 100);
+      const storage = await persistExecutions(updatedExecutions);
 
       res.status(200).json({
         success: true,
-        execution: execution
+        execution,
+        storage: storage.mode,
+        warning: storage.warning || null
       });
     } catch (error) {
       res.status(500).json({
@@ -177,12 +224,12 @@ export default async function handler(req, res) {
     }
   } else if (req.method === 'GET') {
     try {
-      const blob = await get(EXECUTIONS_KEY);
-      const executions = blob ? JSON.parse(blob.text) : [];
+      const executions = await readStoredExecutions();
 
       res.status(200).json({
         success: true,
-        executions: executions
+        executions,
+        storage: 'blob-or-local'
       });
     } catch (error) {
       res.status(500).json({

@@ -19,5 +19,9 @@ yarn-debug.log*
 yarn-error.log*
 *.log
 
+# Local runtime data
+/data/
+**/data/
+
 # OS/editor files
 .DS_Store
