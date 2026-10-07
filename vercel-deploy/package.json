@@ -1,0 +1,23 @@
+{
+  "name": "nobroker-booking-service",
+  "version": "1.0.0",
+  "description": "NoBroker booking automation with UI and cron scheduling",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "next": "^14.0.0",
+    "node-cron": "^3.0.2",
+    "@vercel/kv": "^0.2.1",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.0.0",
+    "eslint-config-next": "^14.0.0"
+  }
+}
