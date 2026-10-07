@@ -9,8 +9,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Trigger the booking API
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/booking`, {
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || `https://${req.headers.host}`;
+    const response = await fetch(`${baseUrl}/api/booking`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

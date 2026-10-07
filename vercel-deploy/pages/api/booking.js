@@ -1,7 +1,8 @@
 // pages/api/booking.js
-import { kv } from '@vercel/kv';
+import { put, get } from '@vercel/blob';
 
 const API_URL = 'https://www.nobrokerhood.com/booking/secured/v2/resident/new';
+const EXECUTIONS_KEY = 'booking-executions.json';
 
 const bookingConfigs = [
   {
@@ -136,7 +137,6 @@ export default async function handler(req, res) {
         bookingConfigs.map(config => makeBooking(config))
       );
 
-      // Save to KV database
       const execution = {
         timestamp: new Date().toISOString(),
         status: 'completed',
@@ -145,8 +145,25 @@ export default async function handler(req, res) {
         total: results.length
       };
 
-      await kv.lpush('booking_executions', JSON.stringify(execution));
-      await kv.ltrim('booking_executions', 0, 99); // Keep last 100
+      // Get existing executions
+      let executions = [];
+      try {
+        const blob = await get(EXECUTIONS_KEY);
+        if (blob) {
+          executions = JSON.parse(blob.text);
+        }
+      } catch (e) {
+        executions = [];
+      }
+
+      // Add new execution and keep last 100
+      executions.unshift(execution);
+      executions = executions.slice(0, 100);
+
+      // Save to Vercel Blob
+      await put(EXECUTIONS_KEY, JSON.stringify(executions), {
+        access: 'public'
+      });
 
       res.status(200).json({
         success: true,
@@ -160,12 +177,12 @@ export default async function handler(req, res) {
     }
   } else if (req.method === 'GET') {
     try {
-      const executions = await kv.lrange('booking_executions', 0, -1);
-      const parsedExecutions = executions.map(e => JSON.parse(e));
+      const blob = await get(EXECUTIONS_KEY);
+      const executions = blob ? JSON.parse(blob.text) : [];
 
       res.status(200).json({
         success: true,
-        executions: parsedExecutions
+        executions: executions
       });
     } catch (error) {
       res.status(500).json({

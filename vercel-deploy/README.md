@@ -8,7 +8,7 @@ Automated facility booking service with React dashboard, cron scheduling, and pe
 ✅ **Cron Scheduling** - Runs daily at 12:00 AM automatically
 ✅ **On-Demand Execution** - "Run Now" button for manual triggering
 ✅ **Live Dashboard** - React UI showing status, logs, and statistics
-✅ **Persistent Storage** - Uses Vercel KV for storing execution history
+✅ **Persistent Storage** - Uses Vercel Blob (free, built-in) for storing execution history
 ✅ **Parallel Execution** - All 6 bookings execute simultaneously
 
 ## Architecture
@@ -33,10 +33,9 @@ Required variables:
 - `NOBROKER_TOKEN` - Your NoBroker API access token
 - `NOBROKER_COOKIES` - Your NoBroker authentication cookies
 - `CRON_SECRET` - Random secret for securing cron endpoint (can be any string, e.g., `openssl rand -base64 32`)
-- `KV_URL` - Vercel KV database URL
-- `KV_REST_API_URL` - Vercel KV REST API endpoint
-- `KV_REST_API_TOKEN` - Vercel KV authentication token
 - `NEXT_PUBLIC_API_URL` - Your deployed Vercel URL (e.g., `https://yourapp.vercel.app`)
+
+**Storage:** Uses Vercel Blob (built-in, no configuration needed)
 
 ## Booking Configuration
 
@@ -99,15 +98,12 @@ In the Vercel dashboard or via CLI:
 vercel env add NOBROKER_TOKEN
 vercel env add NOBROKER_COOKIES
 vercel env add CRON_SECRET
-vercel env add KV_REST_API_URL
-vercel env add KV_REST_API_TOKEN
 vercel env add NEXT_PUBLIC_API_URL
 ```
 
-### 4. Create Vercel KV database
-- Go to Vercel Dashboard → Storage → KV
-- Create a new KV database
-- Copy the environment variables it provides
+### 4. Enable Vercel Blob
+- Go to Vercel Dashboard → Storage → Create → Blob
+- This is automatic and free, no configuration needed
 
 ### 5. Deploy
 ```bash
