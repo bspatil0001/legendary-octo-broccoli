@@ -4,8 +4,10 @@
   "description": "Complete NoBroker facility booking server with dashboard",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "npm install && npm start"
+    "dev": "npm --prefix vercel-deploy run dev",
+    "build": "npm --prefix vercel-deploy run build",
+    "start": "npm --prefix vercel-deploy run start",
+    "lint": "npm --prefix vercel-deploy run lint"
   },
   "keywords": ["cron", "booking", "nobroker", "automation", "dashboard"],
   "author": "",

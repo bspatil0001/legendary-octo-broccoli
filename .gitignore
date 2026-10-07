@@ -1,1 +1,23 @@
-node_modules
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Next.js / Vercel build output
+.next/
+**/.next/
+.vercel/
+**/.vercel/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# OS/editor files
+.DS_Store
