@@ -4,51 +4,106 @@ import { useState, useEffect } from 'react';
 export default function Home() {
   const [isRunning, setIsRunning] = useState(false);
   const [executions, setExecutions] = useState([]);
+  const [actionLogs, setActionLogs] = useState([]);
+  const [cronEnabled, setCronEnabled] = useState(true);
   const [stats, setStats] = useState({ total: 0, successful: 0 });
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isUpdatingCron, setIsUpdatingCron] = useState(false);
+  const [latestRun, setLatestRun] = useState(null);
+  const [feedback, setFeedback] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    loadExecutions();
-    const interval = setInterval(loadExecutions, 10000);
-    return () => clearInterval(interval);
+    loadDashboard();
   }, []);
 
-  async function loadExecutions() {
+  async function loadDashboard(manualRefresh = false) {
+    if (manualRefresh) {
+      setIsRefreshing(true);
+    }
     try {
-      const response = await fetch('/api/booking');
-      const data = await response.json();
+      const [bookingResponse, cronResponse] = await Promise.all([
+        fetch('/api/booking'),
+        fetch('/api/cron-control')
+      ]);
+      const [data, cronData] = await Promise.all([
+        bookingResponse.json(),
+        cronResponse.json()
+      ]);
 
-      if (data.success) {
-        setExecutions(data.executions.reverse());
-        calculateStats(data.executions);
+      if (!bookingResponse.ok || !data.success) {
+        throw new Error(data.error || 'Unable to load booking logs.');
       }
+      if (!cronResponse.ok || !cronData.success) {
+        throw new Error(cronData.error || 'Unable to load cron status.');
+      }
+
+      setExecutions(data.executions);
+      setActionLogs(data.actionLogs || cronData.actionLogs || []);
+      setCronEnabled(cronData.enabled);
+      calculateStats(data.executions);
+      setErrorMessage('');
     } catch (error) {
-      console.error('Error loading executions:', error);
+      setErrorMessage(`Dashboard update failed: ${error.message}`);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   }
 
   function calculateStats(execs) {
-    const totalBookings = execs.reduce((sum, e) => sum + e.results.length, 0);
-    const successfulBookings = execs.reduce((sum, e) => sum + e.successful, 0);
+    const totalBookings = execs.reduce((sum, execution) => sum + (execution.results?.length || 0), 0);
+    const successfulBookings = execs.reduce((sum, execution) => sum + (execution.successful || 0), 0);
     setStats({ total: totalBookings, successful: successfulBookings });
   }
 
   async function handleRunNow() {
     setIsRunning(true);
+    setFeedback('');
+    setErrorMessage('');
     try {
       const response = await fetch('/api/booking', { method: 'POST' });
       const data = await response.json();
 
-      if (data.success) {
-        await loadExecutions();
-        alert('✅ Booking executed successfully!');
+      if (data.execution) {
+        setLatestRun(data.execution);
       }
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'The booking request failed.');
+      }
+
+      setFeedback(`${data.execution.summary}${data.warning ? ` ${data.warning}` : ''}`);
+      await loadDashboard();
     } catch (error) {
-      alert('❌ Error: ' + error.message);
+      setErrorMessage(`Run Now failed: ${error.message}`);
     } finally {
       setIsRunning(false);
+    }
+  }
+
+  async function handleCronToggle(enabled) {
+    setIsUpdatingCron(true);
+    setFeedback('');
+    setErrorMessage('');
+    try {
+      const response = await fetch('/api/cron-control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled })
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Unable to update cron status.');
+      }
+
+      setCronEnabled(data.enabled);
+      setFeedback(`${data.message}${data.warning ? ` ${data.warning}` : ''}`);
+      await loadDashboard();
+    } catch (error) {
+      setErrorMessage(`Cron update failed: ${error.message}`);
+    } finally {
+      setIsUpdatingCron(false);
     }
   }
 
@@ -70,9 +125,9 @@ export default function Home() {
           <div style={styles.card}>
             <div style={styles.statusRow}>
               <span style={styles.label}>Status</span>
-              <span style={styles.badge}>
-                <span style={styles.dot}></span>
-                Running
+              <span style={cronEnabled ? styles.badge : styles.pausedBadge}>
+                <span style={{ ...styles.dot, background: cronEnabled ? '#28a745' : '#dc3545' }}></span>
+                {cronEnabled ? 'Automatic bookings active' : 'Automatic bookings stopped'}
               </span>
             </div>
             <div style={styles.statusRow}>
@@ -81,7 +136,7 @@ export default function Home() {
             </div>
             <div style={styles.statusRow}>
               <span style={styles.label}>Cron Schedule</span>
-              <span style={styles.value}>12:00 AM Daily</span>
+              <span style={styles.value}>12:00 AM IST daily</span>
             </div>
           </div>
 
@@ -110,28 +165,67 @@ export default function Home() {
           >
             {isRunning ? '⏳ Running...' : '🚀 RUN NOW'}
           </button>
+          <button
+            onClick={() => handleCronToggle(!cronEnabled)}
+            disabled={isUpdatingCron}
+            style={cronEnabled ? styles.stopButton : styles.startButton}
+          >
+            {isUpdatingCron ? 'Updating...' : cronEnabled ? 'Stop automatic bookings' : 'Start automatic bookings'}
+          </button>
+          <p style={styles.controlHint}>
+            Stopping pauses scheduled bookings; the daily Vercel cron trigger remains configured.
+          </p>
+          {feedback && <p role="status" style={styles.feedback}>{feedback}</p>}
+          {errorMessage && <p role="alert" style={styles.error}>{errorMessage}</p>}
         </div>
+
+        {latestRun && (
+          <div style={styles.latestRun}>
+            <h2>Latest Run Now Result</h2>
+            <p style={styles.logStatus}>{latestRun.summary}</p>
+            <div style={styles.logResults}>
+              {latestRun.results.map(result => (
+                <div key={result.id} style={styles.resultItem}>
+                  <span>{result.booked ? '✅' : '❌'}</span> {result.name}: {result.message || result.error || 'No response message'}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Execution Logs */}
         <div style={styles.logs}>
-          <h2>📋 Execution Logs</h2>
+          <div style={styles.logHeader}>
+            <h2>📋 Booking History</h2>
+            <button
+              onClick={() => loadDashboard(true)}
+              disabled={isRefreshing || loading}
+              style={styles.refreshButton}
+            >
+              {isRefreshing ? 'Loading logs...' : 'Load latest logs'}
+            </button>
+          </div>
           {loading ? (
             <div style={styles.empty}>Loading logs...</div>
           ) : executions.length === 0 ? (
             <div style={styles.empty}>No executions yet. Click "RUN NOW" to test!</div>
           ) : (
-            executions.slice(0, 10).map((execution, idx) => (
-              <div key={idx} style={styles.logEntry}>
+            executions.slice(0, 10).map(execution => (
+              <div key={execution.timestamp} style={styles.logEntry}>
                 <div style={styles.logTime}>
                   📅 {new Date(execution.timestamp).toLocaleString()}
                 </div>
                 <div style={styles.logStatus}>
-                  ✅ {execution.successful}/{execution.total} bookings successful
+                  {execution.summary || `${execution.successful}/${execution.total} bookings succeeded.`}
+                </div>
+                <div style={styles.logTime}>
+                  {execution.trigger === 'scheduled' ? 'Scheduled run' : execution.trigger === 'manual' ? 'On-demand run' : 'Booking run'}
+                  {execution.bookingDate ? ` · Booking date: ${execution.bookingDate}` : ''}
                 </div>
                 <div style={styles.logResults}>
-                  {execution.results.map((result, ridx) => (
-                    <div key={ridx} style={styles.resultItem}>
-                      <span>{result.booked ? '✅' : '❌'}</span> {result.name}
+                  {execution.results.map(result => (
+                    <div key={result.id} style={styles.resultItem}>
+                      <span>{result.booked ? '✅' : '❌'}</span> {result.name}: {result.message || result.error || 'No response message'}
                     </div>
                   ))}
                 </div>
@@ -139,10 +233,33 @@ export default function Home() {
             ))
           )}
         </div>
+
+        <div style={styles.logs}>
+          <div style={styles.logHeader}>
+            <h2>📝 Activity Log</h2>
+            <button
+              onClick={() => loadDashboard(true)}
+              disabled={isRefreshing || loading}
+              style={styles.refreshButton}
+            >
+              {isRefreshing ? 'Loading logs...' : 'Load latest logs'}
+            </button>
+          </div>
+          {actionLogs.length === 0 ? (
+            <div style={styles.empty}>No cron control actions recorded yet.</div>
+          ) : (
+            actionLogs.slice(0, 10).map((log, idx) => (
+              <div key={`${log.timestamp}-${idx}`} style={styles.activityItem}>
+                <span style={styles.logTime}>{new Date(log.timestamp).toLocaleString()}</span>
+                <span>{log.message}</span>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       <div style={styles.footer}>
-        <p>✅ Logs stored in Vercel KV | ⏰ Runs daily at 12:00 AM</p>
+        <p>Execution and activity logs are stored with the configured storage backend | ⏰ Scheduled daily at 12:00 AM IST</p>
       </div>
     </div>
   );
@@ -221,6 +338,57 @@ const styles = {
     marginBottom: '24px',
     boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
   },
+  stopButton: {
+    width: '100%',
+    padding: '12px 24px',
+    marginTop: '12px',
+    background: '#dc3545',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '14px',
+    fontWeight: 600,
+    cursor: 'pointer'
+  },
+  startButton: {
+    width: '100%',
+    padding: '12px 24px',
+    marginTop: '12px',
+    background: '#28a745',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '14px',
+    fontWeight: 600,
+    cursor: 'pointer'
+  },
+  controlHint: {
+    color: '#666',
+    fontSize: '12px',
+    marginTop: '10px',
+    textAlign: 'center'
+  },
+  feedback: {
+    color: '#155724',
+    background: '#d4edda',
+    padding: '10px',
+    borderRadius: '6px',
+    marginTop: '12px'
+  },
+  error: {
+    color: '#721c24',
+    background: '#f8d7da',
+    padding: '10px',
+    borderRadius: '6px',
+    marginTop: '12px'
+  },
+  latestRun: {
+    background: 'white',
+    borderRadius: '12px',
+    padding: '24px',
+    marginBottom: '24px',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+  },
   button: {
     width: '100%',
     padding: '14px 24px',
@@ -237,7 +405,48 @@ const styles = {
     background: 'white',
     borderRadius: '12px',
     padding: '24px',
+    marginBottom: '24px',
     boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+  },
+  logHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '12px',
+    marginBottom: '16px'
+  },
+  refreshButton: {
+    padding: '8px 12px',
+    background: '#eef2ff',
+    color: '#4338ca',
+    border: '1px solid #c7d2fe',
+    borderRadius: '6px',
+    fontSize: '13px',
+    fontWeight: 600,
+    cursor: 'pointer'
+  },
+  activityItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+    background: '#f8f9fa',
+    borderLeft: '4px solid #6c757d',
+    padding: '12px',
+    marginTop: '10px',
+    borderRadius: '4px',
+    color: '#333',
+    fontSize: '13px'
+  },
+  pausedBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '6px 12px',
+    background: '#f8d7da',
+    color: '#721c24',
+    borderRadius: '20px',
+    fontSize: '12px',
+    fontWeight: 600
   },
   empty: {
     textAlign: 'center',

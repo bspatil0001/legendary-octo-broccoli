@@ -4,21 +4,26 @@ Automated facility booking service with React dashboard, cron scheduling, and pe
 
 ## Features
 
-✅ **Automated Bookings** - Books facilities for 6 different time slots (2 units × 3 time slots)
-✅ **Cron Scheduling** - Runs daily at 12:00 AM automatically
+✅ **Automated Bookings** - Books facilities for 8 different time slots (2 units × 4 time slots)
+✅ **Cron Scheduling** - Runs daily at 12:00 AM IST
 ✅ **On-Demand Execution** - "Run Now" button for manual triggering
 ✅ **Live Dashboard** - React UI showing status, logs, and statistics
-✅ **Persistent Storage** - Uses Vercel Blob (free, built-in) for storing execution history
-✅ **Parallel Execution** - All 6 bookings execute simultaneously
+✅ **Cron Controls** - Pause or resume automatic bookings from the dashboard
+✅ **Readable Activity Logs** - Displays each booking outcome and cron control action
+✅ **Persistent Storage** - Uses Vercel Blob for execution history and cron state
+✅ **Parallel Execution** - All 8 bookings execute simultaneously
 
 ## Architecture
 
 ```
-Pages/
+lib/
+  booking-store.js - Shared Vercel Blob/local JSON storage
+pages/
   index.js           - React dashboard UI
   api/
-    booking.js       - POST/GET API for bookings + KV storage
+    booking.js       - POST/GET API for bookings and execution logs
     cron.js          - Cron endpoint (triggered at 12:00 AM)
+    cron-control.js  - Read and update automatic booking status
 ```
 
 ## Environment Variables
@@ -36,20 +41,23 @@ Required variables:
 - `NEXT_PUBLIC_API_URL` - Your deployed Vercel URL (e.g., `https://yourapp.vercel.app`)
 
 **Storage:** Uses Vercel Blob (built-in, no configuration needed)
+Without Blob credentials in local development, JSON logs are written under `vercel-deploy/data`.
 
 ## Booking Configuration
 
 The service books the following slots:
 
 **Unit 1** (`8a96998285aea12d0185aefccb263bcf`):
-- 6:00 AM - 6:30 AM (3 days from today)
-- 6:30 AM - 7:00 AM (3 days from today)
-- 7:00 AM - 7:30 AM (3 days from today)
+- 6:00 AM - 6:30 AM (2 days from today)
+- 6:30 AM - 7:00 AM (2 days from today)
+- 7:00 AM - 7:30 AM (2 days from today)
+- 7:30 AM - 8:00 AM (2 days from today)
 
 **Unit 2** (`8a96b68291b5bf710191b65d0d09543d`):
-- 6:00 AM - 6:30 AM (3 days from today)
-- 6:30 AM - 7:00 AM (3 days from today)
-- 7:00 AM - 7:30 AM (3 days from today)
+- 6:00 AM - 6:30 AM (2 days from today)
+- 6:30 AM - 7:00 AM (2 days from today)
+- 7:00 AM - 7:30 AM (2 days from today)
+- 7:30 AM - 8:00 AM (2 days from today)
 
 ## Local Development
 
@@ -75,7 +83,7 @@ The app will be available at `http://localhost:3000`
 Click the "🚀 RUN NOW" button on the dashboard to trigger bookings manually.
 
 ### 5. View execution logs
-Logs appear on the dashboard automatically (refreshes every 10 seconds).
+Use **Load latest logs** in Booking History or Activity Log to fetch stored entries. Logs are loaded on initial page load and after a manual booking; the dashboard does not poll.
 
 ## Deployment to Vercel
 
@@ -114,18 +122,20 @@ vercel --prod
 
 The cron job is configured in `vercel.json`:
 - **Path:** `/api/cron`
-- **Schedule:** `0 0 * * *` (12:00 AM UTC daily)
+- **Schedule:** `30 18 * * *` (12:00 AM IST / 6:30 PM UTC daily)
 
 The cron endpoint:
 1. Requires authorization via `CRON_SECRET` header
 2. Calls `/api/booking` with POST method
-3. Stores results in Vercel KV
-4. Keeps the last 100 executions
+3. Checks whether automatic bookings are enabled before booking
+4. Stores results and keeps the last 100 executions
+
+Use the dashboard control to stop or restart automatic bookings. Stopping does not remove the configured Vercel Cron schedule; the route continues to be called daily, skips booking requests, and records that action. The **RUN NOW** button submits bookings immediately regardless of the automatic booking setting and displays each slot result.
 
 ## API Endpoints
 
 ### GET `/api/booking`
-Returns all stored executions from Vercel KV.
+Returns stored booking executions and activity log entries.
 
 **Response:**
 ```json
@@ -136,15 +146,15 @@ Returns all stored executions from Vercel KV.
       "timestamp": "2026-10-08T12:00:00.000Z",
       "status": "completed",
       "results": [...],
-      "successful": 6,
-      "total": 6
+      "successful": 8,
+      "total": 8
     }
   ]
 }
 ```
 
 ### POST `/api/booking`
-Executes all 6 bookings in parallel and stores results.
+Executes all 8 bookings in parallel and stores a human-readable summary and per-slot result. The optional `trigger` field may be set to `"scheduled"`; otherwise the run is recorded as on-demand.
 
 **Response:**
 ```json
@@ -152,6 +162,9 @@ Executes all 6 bookings in parallel and stores results.
   "success": true,
   "execution": {
     "timestamp": "2026-10-08T12:34:56.000Z",
+    "trigger": "manual",
+    "bookingDate": "10/10/2026",
+    "summary": "On-demand booking run finished: 8 of 8 bookings succeeded.",
     "status": "completed",
     "results": [
       {
@@ -165,8 +178,8 @@ Executes all 6 bookings in parallel and stores results.
       },
       ...
     ],
-    "successful": 6,
-    "total": 6
+    "successful": 8,
+    "total": 8
   }
 }
 ```
@@ -179,26 +192,32 @@ Cron endpoint (called by Vercel scheduler).
 Authorization: Bearer your_cron_secret_here
 ```
 
+### GET `/api/cron-control`
+Returns whether automatic bookings are enabled and recent activity log entries.
+
+### POST `/api/cron-control`
+Sets the automatic booking state. Send `{"enabled": false}` to pause scheduled bookings or `{"enabled": true}` to resume them. Each change is recorded in the activity log.
+
 ## Troubleshooting
 
 ### Logs not appearing in dashboard
 1. Check browser console for errors (DevTools → F12)
 2. Verify `/api/booking` GET endpoint returns data
-3. Check Vercel KV database connection
+3. Check Vercel Blob configuration and any storage warning returned by the API
 
 ### "Run Now" button not working
 1. Verify `NOBROKER_TOKEN` and `NOBROKER_COOKIES` are set correctly
 2. Check API response in browser Network tab
 3. Verify credentials haven't expired
 
-### Cron not running at 12:00 AM
+### Cron not running at 12:00 AM IST
 1. Check `vercel.json` has the cron configuration
 2. Verify `CRON_SECRET` environment variable is set
 3. Check Vercel deployment logs for errors
 
 ### Bookings failing with API errors
 1. Verify NoBroker credentials are still valid
-2. Check if date is 3 days in the future (calculated from current time)
+2. Check if the booking date is 2 days in the future
 3. Ensure time slots are not already booked
 4. Verify unitId and apartmentId IDs are correct
 
@@ -215,11 +234,14 @@ npm run lint     # Run ESLint
 
 ```
 vercel-deploy/
+├── lib/
+│   └── booking-store.js     # Shared Blob/local JSON storage
 ├── pages/
 │   ├── index.js              # React dashboard
 │   └── api/
-│       ├── booking.js        # Booking API + KV storage
-│       └── cron.js           # Cron endpoint
+│       ├── booking.js        # Booking API + execution logs
+│       ├── cron.js           # Cron endpoint
+│       └── cron-control.js   # Start/stop automatic bookings
 ├── package.json              # Dependencies
 ├── vercel.json              # Cron configuration
 ├── .env.local.example       # Environment template
