@@ -40,8 +40,7 @@ Required variables:
 - `CRON_SECRET` - Random secret for securing cron endpoint (can be any string, e.g., `openssl rand -base64 32`)
 - `NEXT_PUBLIC_API_URL` - Your deployed Vercel URL (e.g., `https://yourapp.vercel.app`)
 
-**Storage:** Uses Vercel Blob (built-in, no configuration needed)
-Without Blob credentials in local development, JSON logs are written under `vercel-deploy/data`.
+**Storage:** Vercel deployments require a connected Vercel Blob store. In local development, when Blob credentials are absent, JSON logs are written under `vercel-deploy/data`.
 
 ## Booking Configuration
 
@@ -111,7 +110,8 @@ vercel env add NEXT_PUBLIC_API_URL
 
 ### 4. Enable Vercel Blob
 - Go to Vercel Dashboard → Storage → Create → Blob
-- This is automatic and free, no configuration needed
+- Connect the Blob store to this project so Vercel provides `BLOB_READ_WRITE_TOKEN`
+- Ensure the token is available in the deployment environment, then redeploy
 
 ### 5. Deploy
 ```bash
@@ -209,6 +209,7 @@ Sets the automatic booking state. Send `{"enabled": false}` to pause scheduled b
 1. Verify `NOBROKER_TOKEN` and `NOBROKER_COOKIES` are set correctly
 2. Check API response in browser Network tab
 3. Verify credentials haven't expired
+4. If the API reports that Vercel Blob is not configured, connect a Blob store to the project and redeploy
 
 ### Cron not running at 12:00 AM IST
 1. Check `vercel.json` has the cron configuration

@@ -4,7 +4,17 @@ import path from 'path';
 
 const LOCAL_STORAGE_PATH = path.join(process.cwd(), 'data');
 
+function ensureStorageConfigured() {
+  if (!process.env.BLOB_READ_WRITE_TOKEN && process.env.VERCEL) {
+    throw new Error(
+      'Vercel Blob is not configured. Connect a Blob store to this project and redeploy.'
+    );
+  }
+}
+
 export async function readJsonStore(key, fallback) {
+  ensureStorageConfigured();
+
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     try {
       const content = await fs.readFile(path.join(LOCAL_STORAGE_PATH, key), 'utf8');
@@ -35,6 +45,8 @@ export async function readJsonStore(key, fallback) {
 }
 
 export async function writeJsonStore(key, value) {
+  ensureStorageConfigured();
+
   const content = JSON.stringify(value, null, 2);
 
   if (!process.env.BLOB_READ_WRITE_TOKEN) {

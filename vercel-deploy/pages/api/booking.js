@@ -174,6 +174,7 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     let execution;
     try {
+      const executions = await readJsonStore(EXECUTIONS_KEY, []);
       const bookingDate = getBookingDate();
       const results = await Promise.all(
         bookingConfigs.map(config => makeBooking(config, bookingDate))
@@ -191,7 +192,6 @@ export default async function handler(req, res) {
         total: results.length
       };
 
-      const executions = await readJsonStore(EXECUTIONS_KEY, []);
       const updatedExecutions = [execution, ...executions].slice(0, 100);
       const storage = await writeJsonStore(EXECUTIONS_KEY, updatedExecutions);
 
