@@ -1,6 +1,6 @@
 // pages/api/cron.js
-// Vercel Cron runs at 12:00 AM IST (18:30 UTC) daily.
-// Add this to vercel.json: {"crons": [{"path": "/api/cron", "schedule": "30 18 * * *"}]}
+// Vercel Cron runs at 11:05 AM IST (05:35 UTC) daily.
+// Add this to vercel.json: {"crons": [{"path": "/api/cron", "schedule": "35 5 * * *"}]}
 import { readJsonStore, writeJsonStore } from '../../lib/booking-store';
 
 export default async function handler(req, res) {

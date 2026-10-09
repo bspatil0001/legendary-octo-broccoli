@@ -136,7 +136,7 @@ export default function Home() {
             </div>
             <div style={styles.statusRow}>
               <span style={styles.label}>Cron Schedule</span>
-              <span style={styles.value}>12:00 AM IST daily</span>
+              <span style={styles.value}>11:05 AM IST daily</span>
             </div>
           </div>
 
@@ -259,7 +259,7 @@ export default function Home() {
       </div>
 
       <div style={styles.footer}>
-        <p>Execution and activity logs are stored with the configured storage backend | ⏰ Scheduled daily at 12:00 AM IST</p>
+        <p>Execution and activity logs are stored with the configured storage backend | ⏰ Scheduled daily at 11:05 AM IST</p>
       </div>
     </div>
   );

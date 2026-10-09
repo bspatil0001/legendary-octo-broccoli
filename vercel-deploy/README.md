@@ -4,14 +4,14 @@ Automated facility booking service with React dashboard, cron scheduling, and pe
 
 ## Features
 
-✅ **Automated Bookings** - Books facilities for 8 different time slots (2 units × 4 time slots)
-✅ **Cron Scheduling** - Runs daily at 12:00 AM IST
+✅ **Automated Bookings** - Currently configured to test one Unit 1 booking at 9:00 PM
+✅ **Cron Scheduling** - Runs daily at 11:05 AM IST
 ✅ **On-Demand Execution** - "Run Now" button for manual triggering
 ✅ **Live Dashboard** - React UI showing status, logs, and statistics
 ✅ **Cron Controls** - Pause or resume automatic bookings from the dashboard
 ✅ **Readable Activity Logs** - Displays each booking outcome and cron control action
 ✅ **Persistent Storage** - Uses Vercel Blob for execution history and cron state
-✅ **Parallel Execution** - All 8 bookings execute simultaneously
+✅ **Parallel Execution** - Configured booking slots execute simultaneously
 
 ## Architecture
 
@@ -22,7 +22,7 @@ pages/
   index.js           - React dashboard UI
   api/
     booking.js       - POST/GET API for bookings and execution logs
-    cron.js          - Cron endpoint (triggered at 12:00 AM)
+    cron.js          - Cron endpoint (triggered daily at 11:05 AM IST)
     cron-control.js  - Read and update automatic booking status
 ```
 
@@ -122,7 +122,7 @@ vercel --prod
 
 The cron job is configured in `vercel.json`:
 - **Path:** `/api/cron`
-- **Schedule:** `30 18 * * *` (12:00 AM IST / 6:30 PM UTC daily)
+- **Schedule:** `35 5 * * *` (11:05 AM IST / 5:35 AM UTC daily)
 
 The cron endpoint:
 1. Requires authorization via `CRON_SECRET` header
@@ -154,7 +154,7 @@ Returns stored booking executions and activity log entries.
 ```
 
 ### POST `/api/booking`
-Executes all 8 bookings in parallel and stores a human-readable summary and per-slot result. The optional `trigger` field may be set to `"scheduled"`; otherwise the run is recorded as on-demand.
+Executes the configured booking slots in parallel and stores a human-readable summary and per-slot result. The current test configuration contains one Unit 1 slot from 9:00 PM to 9:30 PM. The optional `trigger` field may be set to `"scheduled"`; otherwise the run is recorded as on-demand.
 
 **Response:**
 ```json
@@ -164,7 +164,7 @@ Executes all 8 bookings in parallel and stores a human-readable summary and per-
     "timestamp": "2026-10-08T12:34:56.000Z",
     "trigger": "manual",
     "bookingDate": "10/10/2026",
-    "summary": "On-demand booking run finished: 8 of 8 bookings succeeded.",
+    "summary": "On-demand booking run finished: 1 of 1 bookings succeeded.",
     "status": "completed",
     "results": [
       {
@@ -211,7 +211,7 @@ Sets the automatic booking state. Send `{"enabled": false}` to pause scheduled b
 3. Verify credentials haven't expired
 4. If logs or cron settings are not persisting, connect a Blob store to the project and redeploy
 
-### Cron not running at 12:00 AM IST
+### Cron not running at 11:05 AM IST
 1. Check `vercel.json` has the cron configuration
 2. Verify `CRON_SECRET` environment variable is set
 3. Check Vercel deployment logs for errors

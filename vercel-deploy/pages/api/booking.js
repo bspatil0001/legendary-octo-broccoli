@@ -4,6 +4,7 @@ import { readJsonStore, writeJsonStore } from '../../lib/booking-store';
 const API_URL = 'https://www.nobrokerhood.com/booking/secured/v2/resident/new';
 const EXECUTIONS_KEY = 'booking-executions.json';
 
+/*
 const bookingConfigs = [
   {
     id: 'curl1',
@@ -60,6 +61,17 @@ const bookingConfigs = [
     unit: 2,
     unitId: '8a96b68291b5bf710191b65d0d09543d',
     timeSlot: { from: '07:30:00', to: '08:00:00' }
+  }
+];
+*/
+
+const bookingConfigs = [
+  {
+    id: 'test-unit1-9pm',
+    name: 'Unit 1 - 9:00 PM - 9:30 PM (test)',
+    unit: 1,
+    unitId: '8a96998285aea12d0185aefccb263bcf',
+    timeSlot: { from: '21:00:00', to: '21:30:00' }
   }
 ];
 
