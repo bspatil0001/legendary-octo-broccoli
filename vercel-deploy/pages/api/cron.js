@@ -10,20 +10,32 @@ export default async function handler(req, res) {
   }
 
   try {
-    const control = await readJsonStore('cron-control.json', { enabled: true });
+    let control = { enabled: true };
+    let warning = null;
+    try {
+      control = await readJsonStore('cron-control.json', control);
+    } catch (error) {
+      warning = `Could not read cron settings; proceeding with cron enabled: ${error.message}`;
+    }
+
     if (!control.enabled) {
-      const logs = await readJsonStore('booking-actions.json', []);
       const message = 'Scheduled booking was skipped because automatic booking cron is stopped.';
-      const storage = await writeJsonStore('booking-actions.json', [
-        { timestamp: new Date().toISOString(), message },
-        ...logs
-      ].slice(0, 100));
+      try {
+        const logs = await readJsonStore('booking-actions.json', []);
+        const storage = await writeJsonStore('booking-actions.json', [
+          { timestamp: new Date().toISOString(), message },
+          ...logs
+        ].slice(0, 100));
+        warning = [warning, storage.warning].filter(Boolean).join(' ') || null;
+      } catch (error) {
+        warning = [warning, `Could not save cron activity: ${error.message}`].filter(Boolean).join(' ');
+      }
 
       return res.status(200).json({
         success: true,
         skipped: true,
         message,
-        warning: storage.warning || null
+        warning
       });
     }
 
@@ -48,7 +60,8 @@ export default async function handler(req, res) {
     res.status(200).json({
       success: true,
       message: 'Cron execution completed',
-      data: data
+      data,
+      warning
     });
   } catch (error) {
     res.status(500).json({

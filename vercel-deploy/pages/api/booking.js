@@ -173,8 +173,16 @@ async function makeBooking(config, bookingDate) {
 export default async function handler(req, res) {
   if (req.method === 'POST') {
     let execution;
+    let executions = [];
+    let warning = null;
+    let storageMode = process.env.BLOB_READ_WRITE_TOKEN ? 'blob' : 'local';
     try {
-      const executions = await readJsonStore(EXECUTIONS_KEY, []);
+      executions = await readJsonStore(EXECUTIONS_KEY, []);
+    } catch (error) {
+      warning = `Could not read previous execution history: ${error.message}`;
+    }
+
+    try {
       const bookingDate = getBookingDate();
       const results = await Promise.all(
         bookingConfigs.map(config => makeBooking(config, bookingDate))
@@ -192,14 +200,22 @@ export default async function handler(req, res) {
         total: results.length
       };
 
-      const updatedExecutions = [execution, ...executions].slice(0, 100);
-      const storage = await writeJsonStore(EXECUTIONS_KEY, updatedExecutions);
+      try {
+        const updatedExecutions = [execution, ...executions].slice(0, 100);
+        const storage = await writeJsonStore(EXECUTIONS_KEY, updatedExecutions);
+        storageMode = storage.mode;
+        warning = [warning, storage.warning].filter(Boolean).join(' ') || null;
+      } catch (error) {
+        warning = [warning, `Booking completed, but execution history could not be saved: ${error.message}`]
+          .filter(Boolean)
+          .join(' ');
+      }
 
       res.status(200).json({
         success: true,
         execution,
-        storage: storage.mode,
-        warning: storage.warning || null,
+        storage: storageMode,
+        warning,
         logMessage: execution.summary
       });
     } catch (error) {
